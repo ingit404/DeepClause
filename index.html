@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deep Clause AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .glass-sidebar {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .light-input-card {
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+        }
+
+        .light-input-card:focus-within {
+            border-color: #10b981;
+            box-shadow: 0 10px 40px -10px rgba(16, 185, 129, 0.2);
+        }
+
+        .message-ai {
+            background: #f3f4f6;
+            border-top: 1px solid rgba(0, 0, 0, 0.02);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.02);
+        }
+
+        /* Avatar Styling */
+        .avatar-user {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        }
+
+        .avatar-ai {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+        }
+
+        .typing-cursor::after {
+            content: '▋';
+            animation: blink 1s step-start infinite;
+            color: #10b981;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .transition-all-custom {
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .copy-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message-ai:hover .copy-btn {
+            opacity: 1;
+        }
+
+        /* Markdown Styles */
+        .markdown-body p {
+            margin-bottom: 1em;
+        }
+
+        .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin-bottom: 1em;
+        }
+
+        .markdown-body ol {
+            list-style-type: decimal;
+            padding-left: 1.5em;
+            margin-bottom: 1em;
+        }
+
+        .markdown-body a {
+            color: #059669;
+            text-decoration: underline;
+            font-weight: 500;
+        }
+
+        .markdown-body strong {
+            font-weight: 700;
+            color: #064e3b;
+        }
+
+        .markdown-body blockquote {
+            border-left: 3px solid #10b981;
+            padding: 0.5em 1em;
+            color: #4b5563;
+            font-style: italic;
+            margin-bottom: 1em;
+            background: rgba(16, 185, 129, 0.05);
+            border-radius: 0 4px 4px 0;
+        }
+
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3 {
+            font-weight: 700;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: #111827;
+        }
+
+        .markdown-body code {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body class="h-screen overflow-hidden">
+    <div id="root" class="h-full w-full"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client"
+        }
+    }
+    </script>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+
+        function App() {
+            const [sessions, setSessions] = useState([{ id: '1', title: 'New Analysis', messages: [] }]);
+            const [currentSessionId, setCurrentSessionId] = useState('1');
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+            const [input, setInput] = useState('');
+            const [copyStatus, setCopyStatus] = useState(null);
+
+            const API_ENDPOINT = "http://127.0.0.1:8000/chat";
+            const currentSession = sessions.find(s => s.id === currentSessionId);
+            const isFirstMessage = !currentSession || currentSession.messages.length === 0;
+
+            const handleNewChat = () => {
+                const newId = Date.now().toString();
+                setSessions([{ id: newId, title: 'New Analysis', messages: [] }, ...sessions]);
+                setCurrentSessionId(newId);
+                setIsSidebarOpen(false);
+            };
+
+            const handleCopy = (text, id) => {
+                navigator.clipboard.writeText(text);
+                setCopyStatus(id);
+                setTimeout(() => setCopyStatus(null), 2000);
+            };
+
+            const handleSendMessage = async () => {
+                if (!input.trim() || isLoading) return;
+                const userMsg = { id: Date.now().toString(), role: 'user', content: input };
+                const botMsgId = (Date.now() + 1).toString();
+                const botMsg = { id: botMsgId, role: 'model', content: '', isStreaming: true };
+
+                setSessions(prev => prev.map(s =>
+                    s.id === currentSessionId
+                        ? { ...s, title: s.messages.length === 0 ? input.substring(0, 20) + '...' : s.title, messages: [...s.messages, userMsg, botMsg] }
+                        : s
+                ));
+
+                setInput('');
+                setIsLoading(true);
+
+                try {
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: input, session_id: currentSessionId })
+                    });
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value, { stream: true });
+                        setSessions(prev => prev.map(s => {
+                            if (s.id === currentSessionId) {
+                                return { ...s, messages: s.messages.map(m => m.id === botMsgId ? { ...m, content: m.content + chunk } : m) };
+                            }
+                            return s;
+                        }));
+                    }
+                } catch (error) { console.error("API Error:", error); } finally {
+                    setIsLoading(false);
+                    setSessions(prev => prev.map(s => ({
+                        ...s,
+                        messages: s.messages.map(m => m.id === botMsgId ? { ...m, isStreaming: false } : m)
+                    })));
+                }
+            };
+
+            return (
+                <div className="flex h-screen w-full">
+                    {/* Sidebar */}
+                    <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative z-50 w-72 h-full glass-sidebar transition-transform duration-500 flex flex-col p-4 shadow-sm`}>
+                        <button onClick={handleNewChat} className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-200 hover:bg-emerald-700 transition-all text-sm font-semibold mb-6 group">
+                            <span>+</span> New Chat
+                        </button>
+                        <nav className="flex-1 overflow-y-auto space-y-2">
+                            {sessions.map(s => (
+                                <div key={s.id} onClick={() => { setCurrentSessionId(s.id); setIsSidebarOpen(false); }} className={`p-3 text-sm rounded-xl cursor-pointer truncate transition-all ${currentSessionId === s.id ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                                    <span className="mr-2 opacity-30">#</span> {s.title}
+                                </div>
+                            ))}
+                        </nav>
+                    </aside>
+
+                    <div className="flex-1 flex flex-col relative h-full overflow-hidden">
+                        {/* Header */}
+                        <header className="flex items-center justify-between px-8 py-5 z-40 bg-white/50 backdrop-blur-md">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 hover:bg-slate-100 rounded-lg">☰</button>
+                                <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 uppercase">Deep Clause</h1>
+                            </div>
+                            <div className="flex items-center">
+                                <img src="/static/logo.png" alt="Rupeek Logo" className="h-10 w-auto object-contain" onError={(e) => e.target.style.display = 'none'} />
+                            </div>
+                        </header>
+
+                        <div className="px-8 pb-3 flex items-center gap-6">
+                            <div className="h-[1px] flex-1 bg-slate-200"></div>
+                            <span className="text-[10px] font-bold text-slate-400 tracking-[0.4em] uppercase whitespace-nowrap">Locate, verify, and analyze lending terms in seconds.</span>
+                            <div className="h-[1px] flex-1 bg-slate-200"></div>
+                        </div>
+
+                        {/* Chat Section */}
+                        <main className="flex-1 relative overflow-y-auto pt-4">
+                            {!isFirstMessage && (
+                                <section className="pb-40">
+                                    {currentSession.messages.map(m => (
+                                        <div key={m.id} className={`py-10 ${m.role === 'model' ? 'message-ai' : ''}`}>
+                                            <div className="max-w-3xl mx-auto flex gap-6 px-6 relative">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    {/* Minimalist Circular Icon Avatar */}
+                                                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center shadow-sm ${m.role === 'user' ? 'avatar-user' : 'avatar-ai'}`}>
+                                                        {m.role === 'user' ? (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                                                <circle cx="12" cy="7" r="4"></circle>
+                                                            </svg>
+                                                        ) : (
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+                                                                <path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path>
+                                                            </svg>
+                                                        )}
+                                                    </div>
+
+                                                    {m.role === 'model' && !m.isStreaming && (
+                                                        <button
+                                                            onClick={() => handleCopy(m.content, m.id)}
+                                                            className="copy-btn p-1.5 hover:bg-slate-200 rounded-md text-slate-400 hover:text-slate-600 transition-colors"
+                                                            title="Copy to clipboard"
+                                                        >
+                                                            {copyStatus === m.id ? (
+                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase">Copied!</span>
+                                                            ) : (
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div
+                                                    className="flex-1 text-slate-800 leading-relaxed text-[15px] font-medium pt-2 markdown-body"
+                                                    dangerouslySetInnerHTML={{ __html: marked.parse(m.content + (m.isStreaming ? ' ▋' : '')) }}
+                                                >
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </section>
+                            )}
+                        </main>
+
+                        {/* Input Box */}
+                        <div className={`w-full transition-all-custom ${isFirstMessage ? 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' : 'bg-gradient-to-t from-white via-white/90 to-transparent pt-10'}`}>
+                            <div className="max-w-3xl mx-auto px-6 pb-10">
+                                <div className="relative flex items-center light-input-card rounded-2xl transition-all duration-300">
+                                    <textarea
+                                        rows="1"
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                                        placeholder="Send a message..."
+                                        className="w-full bg-transparent p-5 pr-14 focus:outline-none resize-none max-h-48 text-[15px] placeholder-slate-400 font-medium text-slate-900"
+                                    />
+                                    <button
+                                        onClick={handleSendMessage}
+                                        disabled={isLoading || !input.trim()}
+                                        className="absolute right-4 p-2.5 bg-emerald-600 text-white rounded-xl disabled:bg-slate-100 disabled:text-slate-300 transition-all hover:bg-emerald-700 shadow-md active:scale-95 flex items-center justify-center"
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div className="flex justify-between items-center mt-4 px-2 opacity-60">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                        <span className="text-[9px] text-slate-500 font-bold tracking-widest uppercase">System Online</span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">version V0.1</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
