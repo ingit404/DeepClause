@@ -1,4 +1,12 @@
+
 qdrant_client
 docling
 pandas
 python-dotenv
+google-genai
+langchain
+langchain-classic
+fastapi
+uvicorn
+gunicorn
+requests
