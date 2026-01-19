@@ -3,7 +3,7 @@ from typing import Optional, List
 from google import genai
 from google.genai import types
 from langchain_core.language_models.llms import LLM
-
+from config import MODEL_NAME,MAX_OUTPUT_TOKENS
 # -------------------------
 # 1. Gemini client
 # -------------------------
@@ -33,13 +33,16 @@ rag_tool = types.Tool(
     )
 )
 
+from config import MODEL_NAME
+
+# ...
 
 # -------------------------
 # 3. Gemini wrapper for LangChain memory summarization
 # -------------------------
 class GeminiLLM(LLM):
     client: genai.Client = client
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = MODEL_NAME
 
     @property
     def _llm_type(self) -> str:
@@ -51,7 +54,6 @@ class GeminiLLM(LLM):
             contents=prompt,
             config={
                 "temperature": 0.2,
-                "max_output_tokens": 256,
             },
         )
         return response.text

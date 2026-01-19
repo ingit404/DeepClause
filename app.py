@@ -6,10 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import os
-from conversation_manager import chat_stream
+from conversation_manager import chat
+from config import MODEL_NAME
 
 # Initialize FastAPI
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    print(f"\n🚀 Starting Server...")
+    print(f"🔧 Active Model: {MODEL_NAME}")
+    print(f"✅ System Ready\n")
 
 # Enable CORS (for local development flexibility)
 app.add_middleware(
@@ -37,10 +44,7 @@ async def read_root():
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
-    return StreamingResponse(
-        chat_stream(request.message, request.session_id),
-        media_type="text/plain"
-    )
+    return chat(request.message, request.session_id)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
