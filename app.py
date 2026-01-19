@@ -14,9 +14,9 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def startup_event():
-    print(f"\n🚀 Starting Server...")
+    # print(f"\nStarting Server...")
     print(f"🔧 Active Model: {MODEL_NAME}")
-    print(f"✅ System Ready\n")
+    # print(f"✅ System Ready\n")
 
 # Enable CORS (for local development flexibility)
 app.add_middleware(

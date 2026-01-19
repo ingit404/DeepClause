@@ -8,13 +8,41 @@ from langchain_classic.memory import ConversationSummaryBufferMemory
 from backend_gemini import client, rag_tool, GeminiLLM
 from config import SYSTEM_INSTRUCTION,MAX_OUTPUT_TOKENS,MODEL_NAME
 import logging
+from google.cloud import storage
+from datetime import timedelta
+from urllib.parse import urlparse
 
+# Initialize Storage Client
+storage_client = storage.Client()
+
+def generate_signed_gcs_url(gcs_uri: str, expires_minutes: int = 15) -> str:
+    """
+    Converts gs://bucket/path/file.pdf
+    → signed https://storage.googleapis.com/... link
+    """
+    try:
+        parsed = urlparse(gcs_uri)
+        bucket_name = parsed.netloc
+        blob_name = parsed.path.lstrip("/")
+
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=expires_minutes),
+            method="GET",
+            response_disposition=f'attachment; filename="{blob.name.split("/")[-1]}"'
+        )
+        return url
+    except Exception as e:
+        logging.error(f"Error generating signed URL for {gcs_uri}: {e}")
+        return None
 
 # -------------------------
-# 4. LangChain memory management
+# LangChain memory management
 # -------------------------
-# Dictionary to store memory for each session_id
-# Format: { "session_id": ConversationSummaryBufferMemory object }
+
 user_sessions = {}
 
 def get_memory_for_session(session_id: str) -> ConversationSummaryBufferMemory:
@@ -165,8 +193,14 @@ def chat(user_query: str, session_id: str):
         for chunk in grounding.grounding_chunks:
              if chunk.retrieved_context:
                 rc = chunk.retrieved_context
+                
+                download_url = None
+                if rc.uri.startswith("gs://"):
+                    download_url = generate_signed_gcs_url(rc.uri)
+
                 sources.append({
-                    "uri": rc.uri,
+                    "file_name": rc.uri.split("/")[-1],
+                    "download_url": download_url,
                     "text_snippet": rc.text[:300]
                 })
 

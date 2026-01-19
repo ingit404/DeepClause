@@ -33,9 +33,6 @@ rag_tool = types.Tool(
     )
 )
 
-from config import MODEL_NAME
-
-# ...
 
 # -------------------------
 # 3. Gemini wrapper for LangChain memory summarization
