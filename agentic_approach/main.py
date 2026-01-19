@@ -11,7 +11,7 @@ def extract_text(response) -> str:
 def chat(user_query: str) -> str:
     contextual_query = build_context(memory, user_query)
 
-    raw_response = agent.run(contextual_query)
+    raw_response = agent.kickoff(contextual_query)
     answer = extract_text(raw_response)
 
     if should_store_in_memory(answer):

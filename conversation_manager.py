@@ -2,11 +2,7 @@
 from google.genai import types
 from langchain_classic.memory import ConversationSummaryBufferMemory
 from backend_gemini import client, rag_tool, GeminiLLM
-from config import SYSTEM_INSTRUCTION
-from google.genai import types
-from langchain_classic.memory import ConversationSummaryBufferMemory
-from backend_gemini import client, rag_tool, GeminiLLM
-from config import SYSTEM_INSTRUCTION,MAX_OUTPUT_TOKENS,MODEL_NAME
+from config import SYSTEM_INSTRUCTION, MAX_OUTPUT_TOKENS, MODEL_NAME
 import logging
 from google.cloud import storage
 from datetime import timedelta

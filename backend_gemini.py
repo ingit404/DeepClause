@@ -1,9 +1,11 @@
 
-from typing import Optional, List
+from typing import Optional, List, Any
+from pydantic import Field, ConfigDict
 from google import genai
 from google.genai import types
 from langchain_core.language_models.llms import LLM
-from config import MODEL_NAME,MAX_OUTPUT_TOKENS
+from config import MODEL_NAME, MAX_OUTPUT_TOKENS
+
 # -------------------------
 # 1. Gemini client
 # -------------------------
@@ -38,8 +40,15 @@ rag_tool = types.Tool(
 # 3. Gemini wrapper for LangChain memory summarization
 # -------------------------
 class GeminiLLM(LLM):
-    client: genai.Client = client
+    client: Any = None
     model_name: str = MODEL_NAME
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.client is None:
+            self.client = client
 
     @property
     def _llm_type(self) -> str:
